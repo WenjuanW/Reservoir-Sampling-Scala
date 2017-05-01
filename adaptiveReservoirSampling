@@ -1,0 +1,153 @@
+import scala.io.StdIn._
+import scala.util.Random
+import scala.math._
+
+object AdaptiveRandomSampling {
+ 
+
+/* ---Inputs-------
+* stream: is the data stream (data points : Matrix (m x n)), m is the number of data points, n is the number of features.
+* reservoirSize: is the size of the reservoir : Integer
+* numberToChange: When the number of stream element reaches numberToChange*reservoirSize, the user is asked to input the changed reservoir size : Integer
+* threshold:  is the uniformity confidence threshold (i.e. 0.99) : Double
+---Output----------
+*  Matrix (sxn) contains the reservoir samples, s is the adapted reservoir size, n is the number of features
+---Example---------
+* adaptiveReservoirSampling([1 2 3 0.5; 1 2 5 0.3, 2 4 3 0.4,…], 100, 50, 0.99) 
+---References------
+* M. Al-Kateb, B. S. Lee and X. S. Wang, "Adaptive-Size Reservoir Sampling over Data Streams," 19th International Conference on Scientific and Statistical Database Management (SSDBM 2007),
+ Banff, Alta., 2007, pp. 22-22.doi: 10.1109/SSDBM.2007.29
+---Author-----------
+* written by Wenjuan Wang, Department of Computing, Bournemouth University
+*/ 
+  
+def adaptiveReservoirSampling (stream: Array[Array[Double]], reservoirSize: Int, numberToChange: Int, threshold: Double ): Array[Array[Double]] = {
+  
+   var i : Int = 0
+   var streamElement = Array.fill(0)(0.0)
+   val rand = scala.util.Random
+   var j : Int = 0
+   var k : Int = 0
+   var s : Int = 1
+   var m : Int = 0
+   var x : Int = 0
+   var ReservoirSize = reservoirSize
+   var changedReservoirSize = 0
+   var remainingSize = 0
+   var adaptedReservoir = Array.ofDim[Double](reservoirSize, 0)
+   var adaptedReserS1 = Array.ofDim[Double](x, 0)  
+   var adaptedReserS2 = Array.ofDim[Double](remainingSize, 0)
+
+  
+   for ( streamElement <- stream) {
+    val featureSize = streamElement.length
+    
+    if (i < reservoirSize){
+        adaptedReservoir(i) = streamElement
+        i += 1
+        k+=1
+    } else if (i == numberToChange*reservoirSize){
+     
+      if (i==k){
+          Console.println("Please type the changed reservoir size (Integer)")
+          changedReservoirSize = scala.io.StdIn.readInt()
+          val  delta = changedReservoirSize - ReservoirSize
+
+          if (delta <= 0) {
+            val adaptedReserS  =  Random.shuffle(adaptedReservoir.toList).take(changedReservoirSize)
+            adaptedReservoir = adaptedReserS.toArray
+            i+=1
+            k+=1
+          }else{
+            m = min_m(i,ReservoirSize,delta,threshold)
+            if(m==delta){
+               x = changedReservoirSize - m 
+             }else {
+               x = changedReservoirSize - m + rand.nextInt(m-delta)
+             }
+             remainingSize = changedReservoirSize - x
+             adaptedReserS1 = Random.shuffle(adaptedReservoir.toList).take(x).toArray
+             adaptedReserS2 = Array.ofDim[Double](remainingSize, featureSize)    
+             adaptedReserS2(0) = streamElement
+             k+=1    
+          }      
+        }else{
+           if (k < i + remainingSize){    
+             adaptedReserS2(s) = streamElement
+               s += 1 
+               k+=1
+            } else {
+              j = rand.nextInt(m)
+              if (j < remainingSize)
+              adaptedReserS2(j)  = streamElement
+              k+=1
+            }
+           adaptedReservoir = adaptedReserS1 ++ adaptedReserS2
+           if (k==i+m){ i+=m }  
+         }
+           ReservoirSize = changedReservoirSize 
+      } else { 
+          j = rand.nextInt(i)
+          if (j < ReservoirSize)
+                adaptedReservoir(j) = streamElement
+          i += 1
+          k +=1
+      }
+      }
+  adaptedReservoir
+}                                                
+
+//----sampling from the minimum m incoming items---------------------------------------------
+
+def min_m (i: Int,ReservoirSize: Int,delta: Int,threshold: Double) : Int = {
+
+  var m = delta
+  var UC = 0.0
+  var x = ReservoirSize
+  var f1 = factorial(i)*factorial(m)*factorial(ReservoirSize+delta)*factorial(i+m-ReservoirSize-delta)
+  var f2 = factorial(x)*factorial(i-x)*factorial(ReservoirSize+delta-x)*factorial(m-ReservoirSize-delta+x)*factorial(i+m)
+  UC = UC + f1/f2
+  while(UC <= threshold){
+    m += 1
+    UC = 0.0
+    for (x <- math.max(0,(ReservoirSize+delta-m)) to ReservoirSize){
+      f1 = factorial(i)*factorial(m)*factorial(ReservoirSize+delta)*factorial(i+m-ReservoirSize-delta)
+      f2 = factorial(x)*factorial(i-x)*factorial(ReservoirSize+delta-x)*factorial(m-ReservoirSize-delta+x)*factorial(i+m)
+      UC = UC + f1/f2
+    }
+  }
+  return(m)
+}                                                
+
+//-----factorial function------------------------------------------------------------------
+
+ def factorial(n: Int): Int = {
+      if (n == 0)
+          return 1
+      else
+          return n * factorial(n-1)
+    }                                            
+
+//-----main function--------A small example------------------------------------------------------------
+ 
+ def main(args: Array[String]) {
+   
+     val stream = Array(Array(1.0, 0.3, 5.0), Array(1.2, 4.2, 5.2),
+                        Array(2.0, 3.2, 5.2), Array(1.2, 3.5, 7.6),
+                        Array(1.1, 8.8, 5.2), Array(1.3, 7.2, 5.2),
+                        Array(5.2, 3.1, 5.6), Array(8.2, 3.1, 5.5),
+                        Array(2.0, 0.3, 5.0), Array(2.2, 4.2, 5.2),
+                        Array(3.0, 3.2, 5.2), Array(3.2, 3.5, 7.6),
+                        Array(4.1, 8.8, 5.2), Array(4.3, 7.2, 5.2),
+                        Array(4.2, 3.1, 5.6), Array(5.2, 3.1, 5.5))
+                                                 
+     val ReservoirSize = 4
+     val numberToChange = 2
+     val threshold = 0.99
+     val x = adaptiveReservoirSampling (stream, ReservoirSize, numberToChange, threshold)
+                                                  
+     println(x.deep.mkString("\n"))
+
+ }                                             
+  
+}
